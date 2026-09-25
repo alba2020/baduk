@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Го 9x9 | Лог партии и дебаг</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e24;
+            color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        h1 { margin-bottom: 5px; color: #ffbc42; }
+        .score-board {
+            font-size: 18px;
+            margin-bottom: 20px;
+            background: #2b2b36;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            gap: 20px;
+        }
+        .main-container {
+            display: flex;
+            gap: 25px;
+            background: #2b2b36;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            grid-template-rows: repeat(9, 50px);
+            background-color: #e0ab76;
+            border: 3px solid #8a5a36;
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            position: relative;
+            cursor: pointer;
+        }
+        .cell::before, .cell::after {
+            content: "";
+            position: absolute;
+            background-color: #5c3a21;
+        }
+        .cell::before { top: 24px; left: 0; width: 100%; height: 2px; }
+        .cell::after { top: 0; left: 24px; width: 2px; height: 100%; }
+        
+        .stone {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            position: absolute;
+            top: 4px; left: 4px;
+            z-index: 10;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+        }
+        .stone.black { background: radial-gradient(circle at 12px 12px, #444, #111); }
+        .stone.white { background: radial-gradient(circle at 12px 12px, #fff, #ccc); border: 1px solid #aaa; }
+        
+        .side-panels {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 280px;
+        }
+        .debug-panel {
+            background: #1e1e24;
+            border-left: 4px solid #ffbc42;
+            padding: 15px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .history-panel {
+            background: #1e1e24;
+            border-left: 4px solid #00adb5;
+            padding: 15px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            height: 220px;
+        }
+        .history-log {
+            overflow-y: auto;
+            flex-grow: 1;
+            font-family: monospace;
+            font-size: 13px;
+            color: #ccc;
+            padding-top: 5px;
+            line-height: 1.4;
+        }
+        .debug-title {
+            font-weight: bold; color: #ffbc42;
+            border-bottom: 1px solid #444; padding-bottom: 5px;
+            text-transform: uppercase; font-size: 13px;
+        }
+        .history-title {
+            font-weight: bold; color: #00adb5;
+            border-bottom: 1px solid #444; padding-bottom: 5px;
+            text-transform: uppercase; font-size: 13px;
+        }
+        .metric { display: flex; justify-content: space-between; font-size: 14px; }
+        .metric span.val { color: #00adb5; font-family: monospace; font-weight: bold; }
+        
+        .btn-pass {
+            background-color: #ffaa00;
+            color: #111;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+        .btn-pass:hover { background-color: #ffcc44; }
+        .status-msg { color: #aaa; font-style: italic; font-size: 13px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>Го 9x9 — Анализ ходов</h1>
+    <div class="score-board">
+        <div>Камней у Вас: <span id="human-score" style="color:#00adb5; font-weight:bold;">0</span></div>
+        <div>Камней у ИИ: <span id="ai-score" style="color:#ffaa00; font-weight:bold;">0</span></div>
+        <div>Ход: <span id="move-counter" style="font-weight:bold;">0</span> / 200</div>
+    </div>
+
+    <div class="main-container">
+        <div class="board" id="go-board"></div>
+
+        <div class="side-panels">
+            <!-- Панель статуса ИИ -->
+            <div class="debug-panel">
+                <div class="debug-title">Статус ИИ</div>
+                <div class="metric"><span>Глубина поиска:</span><span class="val">7 плий</span></div>
+                <div class="metric"><span>Время расчета:</span><span class="val" id="log-time">0.00 мс</span></div>
+                <div class="metric"><span>Вариантов дерева:</span><span class="val" id="log-nodes">0</span></div>
+                
+                <button class="btn-pass" id="btn-pass-action">Объявить ПАС</button>
+                <div class="status-msg" id="status-text">Ваш ход. Поставьте камень.</div>
+            </div>
+
+            <!-- Новая панель истории ходов партии -->
+            <div class="history-panel">
+                <div class="history-title">История ходов</div>
+                <div class="history-log" id="history-log-box"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BoardSize = 9;
+        const MaxMoves = 200;
+        
+        let boardState = Array(BoardSize * BoardSize).fill(0);
+        let humanScore = 0;
+        let aiScore = 0;
+        let moveCount = 0;
+        let lockBoard = false;
+
+        const boardEl = document.getElementById("go-board");
+        const humanScoreEl = document.getElementById("human-score");
+        const aiScoreEl = document.getElementById("ai-score");
+        const moveCounterEl = document.getElementById("move-counter");
+        const logTimeEl = document.getElementById("log-time");
+        const logNodesEl = document.getElementById("log-nodes");
+        const statusTextEl = document.getElementById("status-text");
+        const btnPass = document.getElementById("btn-pass-action");
+        const historyLogBox = document.getElementById("history-log-box");
+
+        // Массив букв для канонической Го-нотации (Без "I")
+        const columnsLookup = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J'];
+
+        function indexToCoordinates(idx) {
+            if (idx === -1) return "ПАС";
+            const row = 9 - Math.floor(idx / BoardSize); // От 1 до 9 снизу вверх
+            const col = idx % BoardSize;                 // Буква слева направо
+            return columnsLookup[col] + row;
+        }
+
+        function appendToLog(playerStr, idx) {
+            const coord = indexToCoordinates(idx);
+            const line = document.createElement("div");
+            line.innerText = `[#${moveCount + 1}] ${playerStr}: ${coord}`;
+            historyLogBox.appendChild(line);
+            historyLogBox.scrollTop = historyLogBox.scrollHeight;
+        }
+
+        function initBoard() {
+            boardEl.innerHTML = "";
+            for (let i = 0; i < BoardSize * BoardSize; i++) {
+                const cell = document.createElement("div");
+                cell.className = "cell";
+                cell.addEventListener("click", () => handleTurn(i));
+                boardEl.appendChild(cell);
+            }
+        }
+
+        function renderStones() {
+            const cells = boardEl.children;
+            for (let i = 0; i < cells.length; i++) {
+                const cell = cells[i];
+                const oldStone = cell.querySelector(".stone");
+                if (oldStone) oldStone.remove();
+
+                if (boardState[i] === 1) {
+                    const stone = document.createElement("div");
+                    stone.className = "stone black";
+                    cell.appendChild(stone);
+                } else if (boardState[i] === -1) {
+                    const stone = document.createElement("div");
+                    stone.className = "stone white";
+                    cell.appendChild(stone);
+                }
+            }
+        }
+
+        async function handleTurn(playerMoveIdx) {
+            if (lockBoard) return;
+            if (playerMoveIdx !== -1 && boardState[playerMoveIdx] !== 0) return;
+
+            lockBoard = true;
+            let humanPassedThisTurn = false;
+
+            if (playerMoveIdx !== -1) {
+                boardState[playerMoveIdx] = 1;
+                renderStones();
+                appendToLog("Вы", playerMoveIdx);
+                moveCount++;
+                moveCounterEl.innerText = moveCount;
+                statusTextEl.innerText = "ИИ рассчитывает ход...";
+            } else {
+                humanPassedThisTurn = true;
+                appendToLog("Вы", -1);
+                moveCount++;
+                moveCounterEl.innerText = moveCount;
+                statusTextEl.innerText = "Вы пасанули. Ожидание ИИ...";
+            }
+
+            try {
+                const response = await fetch("/move", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        board: boardState,
+                        humanScore: humanScore,
+                        aiScore: aiScore,
+                        lastMove: playerMoveIdx,
+                        moveCount: moveCount,
+                        maxMoves: MaxMoves,
+                        humanPassed: humanPassedThisTurn
+                    })
+                });
+
+                const data = await response.json();
+
+                boardState = data.newBoard;
+                humanScore = data.humanScore;

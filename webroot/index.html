@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Го 9x9 | Лог партии и дебаг</title>
+    <link rel="stylesheet" href="/webroot/style.css" />
+  </head>
+  <body>
+    <h1>Го 9x9 — Анализ ходов</h1>
+    <div class="score-board">
+      <div>
+        Камней у Вас: <span id="human-score" class="score-val human">0</span>
+      </div>
+      <div>Камней у ИИ: <span id="ai-score" class="score-val ai">0</span></div>
+      <div>Ход: <span id="move-counter">0</span> / 200</div>
+    </div>
+
+    <div class="main-container">
+      <div class="board" id="go-board"></div>
+      <div class="side-panels">
+        <div class="debug-panel">
+          <div class="debug-title">Статус ИИ</div>
+          <div class="metric">
+            <span>Глубина поиска:</span><span class="val">7 плий</span>
+          </div>
+          <div class="metric">
+            <span>Время расчета:</span
+            ><span class="val" id="log-time">0.00 мс</span>
+          </div>
+          <div class="metric">
+            <span>Вариантов дерева:</span
+            ><span class="val" id="log-nodes">0</span>
+          </div>
+          <button class="btn-pass" id="btn-pass-action">Объявить ПАС</button>
+          <div class="status-msg" id="status-text">
+            Ваш ход. Поставьте камень.
+          </div>
+        </div>
+        <div class="history-panel">
+          <div class="history-title">История ходов</div>
+          <div class="history-log" id="history-log-box"></div>
+        </div>
+      </div>
+    </div>
+    <script src="/webroot/app.js"></script>
+  </body>
+</html>
